@@ -1,6 +1,6 @@
 # AGCOD Client
 
-Steps to reproduce out issue:
+Steps to reproduce our issue:
 1. Clone this repository with `git clone git@github.com:thealphaversion/AGCOD-Client.git`.
 2. `cd` to this repository on your local machine.
 3. Create an environment with `python3 -m venv env`.
