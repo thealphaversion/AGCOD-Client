@@ -54,7 +54,9 @@ class AWSIncentivesClient:
         # User and instance parameters
         self.AWS_KEY_ID = AMAZON_ACCESS_KEY_ID
         self.AWS_SECRET_KEY = AMAZON_SECRET_KEY
+
         self.date_time_string = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+        # self.date_time_string = '20220121T190157Z'          # Using a fixed datetime for debugging
         self.date_string = self.date_time_string[:8]
 
         # Signature calculation related parameters
@@ -109,7 +111,7 @@ class AWSIncentivesClient:
             + self.QUERY_STRING + '\n' \
             + self.ACCEPT_HEADER + ':' + self.CONTENT_TYPE + '\n' \
             + self.HOST_HEADER + ':' + self.HOST + '\n' \
-            + self.XAMZDATE_HEADER + ':' + '20220114T190157Z' + '\n' \
+            + self.XAMZDATE_HEADER + ':' + self.date_time_string + '\n' \
             + self.XAMZTARGET_HEADER + ':' + self.SERVICE_TARGET + '\n' \
             + '\n' \
             + self.ACCEPT_HEADER + ';' + self.HOST_HEADER + ';' + self.XAMZDATE_HEADER + ';' + self.XAMZTARGET_HEADER + '\n' \
@@ -190,64 +192,95 @@ class AWSIncentivesClient:
             self.XAMZTARGET_HEADER: self.SERVICE_TARGET,
         }
 
-        # Build canonical request and its hash
-        canonical_request = self._build_canonical_request(self._build_request_payload(amount, request_id))
-        print('canonical_request:', canonical_request)
+        # Build request payload
+        print('Request payload:')
+        print(self._build_request_payload(amount, request_id))
         print('               ')
+
+        # Build request payload hash
+        print('Request payload hash:')
+        print(self.hashstr(self._build_request_payload(amount, request_id)))
+        print('               ')
+
+        # Build canonical request
+        canonical_request = self._build_canonical_request(self._build_request_payload(amount, request_id))
+        print('Canonical_Request:')
+        print(canonical_request)
+        print('               ')
+        
+        # Build canonical request hash
         canonical_request_hash = self.hashstr(canonical_request)
-        print('canonical_request_hash:', canonical_request_hash)
+        print('Canonical Request Hash:')
+        print(canonical_request_hash)
         print('               ')
 
         # Build string to sign
         string_to_sign = self._build_string_to_sign(canonical_request_hash)
-        print('string_to_sign:', string_to_sign)
+        print('String To Sign:')
+        print(string_to_sign)
         print('               ')
 
         # Create signature
         signature = self._calculate_signature(string_to_sign)
-        print('signature:', signature)
+        print('Signature:')
+        print(signature)
         print('               ')
 
         # Build authorization header
         authorization_header = self._build_authorization_header(signature)
-        print('authorization_header:', authorization_header)
+        print('Authorization Header:')
+        print(authorization_header)
         print('               ')
 
         # Add authorization header to headers
         headers[self.AUTHORIZATION_HEADER] = authorization_header
 
-        print('headers:', headers)
+        print('Request Headers:')
+        print(headers)
 
         return headers
 
-    def make_request(self, amount, user_id, lead_id):
-        request_id = f'{self.REQUEST_ID_PREFIX}u{user_id}l{lead_id}'
-        headers = self._prepare_request_header(amount,request_id)
-
-        try:
-            req = requests.Request(
+    def _prepare_request(self, amount, request_id, headers):
+        req = requests.Request(
                 'POST',
                 self.HOST_NAME,
                 json=self._build_request_payload(amount, request_id),
                 headers=headers,
-                # timeout=self.REQUEST_TIMEOUT
             )
-            prepared = req.prepare()
-            print('            ')
-            print('            ')
-            self.pretty_print_POST(prepared)
-            r = requests.post(
+        prepared = req.prepare()
+        print('            ')
+        print('            ')
+        self.pretty_print_POST(prepared)
+
+        return req
+
+    def _send_request(self, amount, request_id, headers):
+        res = requests.post(
                 self.HOST_NAME,
                 json=self._build_request_payload(amount, request_id),
                 headers=headers,
             )
-            print('response status code:', r.status_code)
-            print('response test', r.text)
+        print('               ')
+        print('response status code:', res.status_code)
+        print('response test', res.text)
+
+        return res
+
+    def make_request(self, amount, request_id, request_type='send'):
+        # request_id = f'{self.REQUEST_ID_PREFIX}{request_id}'
+        headers = self._prepare_request_header(amount,request_id)
+
+        try:
+            if request_type == 'prepare':
+                res = self._prepare_request(amount, request_id, headers)
+            else:
+                res = self._send_request(amount, request_id, headers)
+            
         except requests.Timeout:
             print('ERROR: INCENTIVES: Request timed out')
             return {}
 
-        return req
+        return res
 
     def pretty_print_POST(self, req):
         """
@@ -264,3 +297,21 @@ class AWSIncentivesClient:
             '\r\n'.join('{}: {}'.format(k, v) for k, v in req.headers.items()),
             req.body,
         ))
+
+
+def main():
+    # We're trying out the CreateGiftCard service
+    # Please change the `_build_request_payload` method accordingly to try out other services
+    client = AWSIncentivesClient(
+        AGCODServiceOperation.CreateGiftCard,
+        'YOUR_KEY_ID_HERE',
+        'YOUR_KEY_SECRET_HERE',
+    )
+
+    res = client.make_request(100, f'{client.REQUEST_ID_PREFIX}1234')
+
+    # Use this to print the request without sending it
+    # res = client.make_request(100, f'{client.REQUEST_ID_PREFIX}1234', request_type='prepare')
+
+if __name__== '__main__':
+    main()
